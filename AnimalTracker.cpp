@@ -13,15 +13,19 @@ int main() {
 	float conf_thresh = 0.45f;
 	float nms_thresh = 0.50f;
 
-	// Allowed classes to detect (iot have O(1) filtering, we use a hash structure)
+	// Allowed classes to detect (let's use a hash structure to have O(1) search)
 	std::unordered_set<int> allowed_classes = { 0, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 }; // Animals only: person, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe
 
 	if (im_path.empty() || model_path.empty() || names_path.empty()) {
 		std::cerr << "Error: Missing required paths for image, model, or class names." << std::endl;
 		return -1;
 	}
-	
+
 	cv::Mat image = cv::imread(im_path);
+	if (image.empty()) {
+		std::cerr << "Error: Could not read the image at " << im_path << std::endl;
+		return -1;
+	}
 
 	YOLODetector detector(model_path, names_path, allowed_classes, conf_thresh, nms_thresh, true);
 	std::vector<Detection> detections = detector.detect(image);

@@ -2,8 +2,6 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/dnn.hpp>
-#include <string>
-#include <vector>
 #include <unordered_set>
 
 struct Detection {

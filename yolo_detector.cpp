@@ -25,28 +25,17 @@ YOLODetector::YOLODetector(const std::string& model_path, const std::string& nam
 	names_file.open(names_path);
 
 	std::string name;
-	int i = 0;
 	while (std::getline(names_file, name))
 		if (!name.empty()) {
-			if (!allowed_classes_.empty() && allowed_classes_.count(i) == 0)
-				class_names_.push_back(""); // Placeholder for skipped class to keep indices aligned; will be ignored in detect() since class_id won't be in allowed_classes_
-			else {
-				class_names_.push_back(name);
-				if (verbose_)
-					std::cout << "Loaded class " << i << ": " << name << std::endl;
-			}
-			i++;
+			class_names_.push_back(name);
+			if (verbose_)
+				std::cout << "Loaded class: " << name << std::endl;
 		}
 
 	names_file.close();
 
 	// Initialize class colors (sample Hue on class id)
 	for (int i = 0; i < class_names_.size(); i++) {
-		if (class_names_[i].empty()) {
-			colors_.push_back(cv::Scalar(0, 0, 0)); // Placeholder color for skipped class
-			continue; // Skip placeholders for disallowed classes
-		}
-
 		int hue = (i * 180 / class_names_.size()) % 180;  // Set hue in range [0, 179] deterministically and evenly across classes
 		cv::Scalar hsvColor(hue, 255, 255);  // Set Saturation and Value to max for visibility
 		cv::Mat hsvMat(1, 1, CV_8UC3, hsvColor);  // Wrap color in a 1x1 3-Channels Matrix
@@ -61,8 +50,14 @@ YOLODetector::YOLODetector(const std::string& model_path, const std::string& nam
 }
 
 std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
+
+	// INtermediate results to later be filtered by NMS to detections
+	std::vector<cv::Rect> bboxes;
+	std::vector<float> scores;
+	std::vector<int> class_indices;
 	std::vector<Detection> detections;
-	int out_size (NUM_CLASSES + 4);
+
+	int out_size = NUM_CLASSES + 4;  // consider the returned (cx, cy, w, h) data
 
 	cv::Mat blob;
 	// Preprocessing: normalize; resize so the smaller side is YOLO_INPUT_SIZE, keeping aspect ratio; stretch to YOLO_INPUT_SIZE x YOLO_INPUT_SIZE (YOLOv8 is robust enough to handle aspect-ratio distortion)
@@ -102,10 +97,10 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 			std::cout << "Candidate " << i << ": Best class = " << class_names_[bestClass] << " with confidence = " << maxLabel << std::endl;
 
 		// Convert cx,cy,w,h to cv::Rect, scale by x_scale/y_scale
-		int cx = inference.at<float>(0, i);
-		int cy = inference.at<float>(1, i);
-		int w = inference.at<float>(2, i);
-		int h = inference.at<float>(3, i);
+		float cx = inference.at<float>(0, i);
+		float cy = inference.at<float>(1, i);
+		float w = inference.at<float>(2, i);
+		float h = inference.at<float>(3, i);
 
 		cx *= x_scale;
 		cy *= y_scale;
@@ -114,17 +109,34 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 
 		cv::Rect bbox((int)(cx - w / 2), (int)(cy - h / 2), (int)w, (int)h);
 
-		// Push a Detection into detections
-		Detection d{ bestClass, class_names_[bestClass], maxLabel, bbox };
+		// Save intermediate result
+		bboxes.push_back(bbox);
+		scores.push_back(maxLabel);
+		class_indices.push_back(bestClass);
+	}
+
+	// Apply Non-Maximum Suppression to intermediate results (avoid identifier "cv::dnn::NMSBoxes" is undefined by including <opencv2/dnn.hpp>)
+	std::vector<int> indices;
+	cv::dnn::NMSBoxes(bboxes, scores, conf_thresh_, nms_thresh_, indices);
+
+	// Populate detections to return
+	for (int i : indices) {
+		Detection d{ class_indices[i], class_names_[class_indices[i]], scores[i], bboxes[i]};
 		detections.push_back(d);
 	}
+
 	return detections;
 }
 
 void YOLODetector::draw(cv::Mat& image, const std::vector<Detection>& detections) const{
 	for (const Detection& d : detections) {
+		// Build label, text point, color
+		std::string label = d.class_label + ": " + std::to_string(d.confidence).substr(0, 4); // Show confidence with 2 decimal places
+		cv::Point point(d.bbox.tl().x, d.bbox.tl().y - 5);
 		cv::Scalar color = colors_.at(d.class_id);
+
+		// Draw colored rectangle with attached label
 		cv::rectangle(image, d.bbox, color, 2);
-		cv::putText(image, d.class_label, d.bbox.tl(), cv::FONT_HERSHEY_PLAIN, 2, color, 1);
+		cv::putText(image, label, point, cv::FONT_HERSHEY_PLAIN, 1, color, 1);
 	}
 }
