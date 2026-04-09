@@ -16,7 +16,7 @@ YOLODetector::YOLODetector(const std::string& model_path, const std::string& nam
 	// Reserve space for class names and colors
 	class_names_.reserve(NUM_CLASSES);
 	colors_.reserve(NUM_CLASSES);
-	
+
 	// Load model from the ONNX downloaded
 	net_ = cv::dnn::readNetFromONNX(model_path);
 
@@ -51,7 +51,7 @@ YOLODetector::YOLODetector(const std::string& model_path, const std::string& nam
 
 std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 
-	// INtermediate results to later be filtered by NMS to detections
+	// Intermediate results to later be filtered by NMS, and stored in detections
 	std::vector<cv::Rect> bboxes;
 	std::vector<float> scores;
 	std::vector<int> class_indices;
@@ -75,7 +75,7 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 	// Iterate over all candidates
 	for (int i = 0; i < NUM_CANDIDATES; i++) {
 
-		// Find the best class score among indices 4..83
+		// Find the best class score among indices 4..NUM_CLASSES-1
 		float maxLabel = 0;
 		int bestClass = 0;
 		for (int j = 4; j < out_size; j++) {
@@ -89,12 +89,9 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 			}
 		}
 
-		// If best score < conf_thresh_, skip
+		// Skip predictions below threshold
 		if (maxLabel < conf_thresh_)
 			continue;
-
-		if (verbose_)
-			std::cout << "Candidate " << i << ": Best class = " << class_names_[bestClass] << " with confidence = " << maxLabel << std::endl;
 
 		// Convert cx,cy,w,h to cv::Rect, scale by x_scale/y_scale
 		float cx = inference.at<float>(0, i);
@@ -115,20 +112,22 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 		class_indices.push_back(bestClass);
 	}
 
-	// Apply Non-Maximum Suppression to intermediate results (avoid identifier "cv::dnn::NMSBoxes" is undefined by including <opencv2/dnn.hpp>)
+	// Apply Non-Maximum Suppression to intermediate results
 	std::vector<int> indices;
 	cv::dnn::NMSBoxes(bboxes, scores, conf_thresh_, nms_thresh_, indices);
 
 	// Populate detections to return
 	for (int i : indices) {
-		Detection d{ class_indices[i], class_names_[class_indices[i]], scores[i], bboxes[i]};
+		Detection d{ class_indices[i], class_names_[class_indices[i]], scores[i], bboxes[i] };
 		detections.push_back(d);
+		if (verbose_)
+			std::cout << "Candidate " << i << ": Best class = " << class_names_[class_indices[i]] << " with confidence = " << scores[i] << std::endl;
 	}
 
 	return detections;
 }
 
-void YOLODetector::draw(cv::Mat& image, const std::vector<Detection>& detections) const{
+void YOLODetector::draw(cv::Mat& image, const std::vector<Detection>& detections) const {
 	for (const Detection& d : detections) {
 		// Build label, text point, color
 		std::string label = d.class_label + ": " + std::to_string(d.confidence).substr(0, 4); // Show confidence with 2 decimal places
