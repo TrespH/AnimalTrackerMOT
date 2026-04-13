@@ -104,7 +104,7 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 		w *= x_scale;
 		h *= y_scale;
 
-		cv::Rect bbox((int)(cx - w / 2), (int)(cy - h / 2), (int)w, (int)h);
+		cv::Rect bbox((cx - w / 2), (cy - h / 2), w, h);
 
 		// Save intermediate result
 		bboxes.push_back(bbox);
