@@ -7,7 +7,7 @@
 int KalmanTracker::next_id_ = 0;
 
 
-KalmanTracker::KalmanTracker(const Detection& d) : id(++next_id_), missed_frames(0) {
+KalmanTracker::KalmanTracker(const Detection& d) : id(++next_id_), missed_frames(0), last_d(d) {
 
 	// Initialize status x
 	x = cv::Mat(8, 1, CV_32F);
@@ -28,7 +28,7 @@ KalmanTracker::KalmanTracker(const Detection& d) : id(++next_id_), missed_frames
 	for (int i = 0; i < 4; i++) P.at<float>(i, i) = 10.0f;
 	for (int i = 4; i < 8; i++) P.at<float>(i, i) = 1000.0f;
 
-	// Initalize  F (identity block for positions and velocities, and +1 where position couples to velocity (top-right block)
+	// Initalize F (identity block for positions and velocities, and +1 where position couples to velocity (top-right block)
 	F = cv::Mat::eye(8, 8, CV_32F);
 	for (int i = 0; i < 4; i++) F.at<float>(i, i + 4) = 1.0f;
 
@@ -62,7 +62,7 @@ cv::Rect KalmanTracker::predict() {
 
 
 void KalmanTracker::update(const Detection& d) {
-
+	last_d = d;
 	// Reset missed number of frames, as we just received a measurement
 	missed_frames = 0;
 

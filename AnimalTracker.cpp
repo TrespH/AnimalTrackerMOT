@@ -4,20 +4,10 @@
 #include "yolo_detector.hpp"
 #include "mot_tracker.hpp"
 
-const std::string ACQUISITION_MODE = "video"; // image, video or camera
+const std::string ACQUISITION_MODE = "camera"; // image, video or camera
 
 
 int main() {
-	/*float data[] = {
-		6, 10, 5, 2,
-		3, 5, 7, 7,
-		9, 1, 8, 4,
-		10, 3, 12, 5,
-	};
-	cv::Mat test(4, 4, CV_32F, data);
-	
-	return 0;*/
-
 	
 	//std::string im_path = "Resources/lambo.png";
 	std::string im_path = "Resources/cows_human.jpg";
@@ -56,7 +46,8 @@ int main() {
 
 		// Detect animals and draw onto the same image
 		std::vector<Detection> detections = detector.detect(image);
-		detector.draw(image, detections);
+		for (const Detection& d : detections)
+			detector.draw(image, d);
 
 		// Show image wih bboxes, labels and likelihoods
 		cv::imshow("image", image);
@@ -82,16 +73,25 @@ int main() {
 		}
 
 		cv::Mat frame;
+		MOTTracker mot_tracker;
+		std::vector<KalmanTracker> trackers;
 
 		while (capture.read(frame)) {
 
-			// Detect animals and draw onto each frame
+			// Detect animals
 			std::vector<Detection> detections = detector.detect(frame);
-			detector.draw(frame, detections);
+
+			// Update MOT Tracker
+			trackers = mot_tracker.update(detections);
+
+			// Draw (only needs the track, which contains id, class id, class label and state vector (bbox))
+			for (const KalmanTracker& t : trackers)
+				detector.draw(frame, t.last_d, t.id);
+		
 			cv::imshow("frame", frame);
 
 			// Show frame wih bboxes, labels and likelihoods
-			if (cv::waitKey(30) == 27) break;  // 27: Escape key
+			if (cv::waitKey(3) == 27) break;  // 27: Escape key
 		}
 
 	}

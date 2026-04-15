@@ -17,7 +17,7 @@ public:
 
 	std::vector<Detection> detect(const cv::Mat& image);
 
-	void draw(cv::Mat& image, const std::vector<Detection>& detections) const;
+	void draw(cv::Mat& image, const Detection& d, const int id = -1) const;
 
 private:
 	cv::dnn::Net net_;

@@ -8,6 +8,7 @@ public:
 	static int next_id_;
 	int id;
 	int missed_frames;
+	Detection last_d;
 
 	KalmanTracker(const Detection& d);
 

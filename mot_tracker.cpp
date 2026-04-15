@@ -5,6 +5,7 @@
 
 constexpr int MAX_MISSED_FRAMES = 30;
 constexpr float HA_MAX = 1.0f;
+constexpr float IOU_COST_THRESH = 0.3f;
 
 
 float computeIoU(const cv::Rect& a, const cv::Rect& b) {  // Will be moved to utils module
@@ -18,6 +19,12 @@ float computeIoU(const cv::Rect& a, const cv::Rect& b) {  // Will be moved to ut
 MOTTracker::MOTTracker() {}
 
 std::vector<KalmanTracker> MOTTracker::update(const std::vector<Detection>& detections) {
+
+	if (tracks_.empty()) {
+		for (const Detection& d : detections)
+			tracks_.emplace_back(d);
+		return tracks_;
+	}
 
 	int num_tracks = tracks_.size();
 	int num_detections = detections.size();
@@ -33,63 +40,85 @@ std::vector<KalmanTracker> MOTTracker::update(const std::vector<Detection>& dete
 			cost_matrix.at<float>(i, j) = 1 - computeIoU(track_bbox, detections[j].bbox);  // Score to Cost
 	}
 	
+	std::vector<std::pair<int, int>> matched_pairs;
+	std::unordered_set<int> matched_detections_ids;
 	
 	// Run Hungarian algorithm on cost matrix → get matched pairs
-	std::vector<std::pair<int, int>> optimal_pairs;
-	optimal_pairs = hungarian_algorithm(cost_matrix);
-	// For matched pairs    → call track.update(detection)
-	
-	// For unmatched detections → create new KalmanTracker
+	matched_pairs = hungarian_algorithm(cost_matrix);
 
-	// For unmatched tracks     → increment missed_frames (already done in predict)
+	// For matched pairs, call track.update(detection)
+	for (std::pair<int, int>& mp : matched_pairs) {
+		matched_detections_ids.insert(mp.second);
+		if (cost_matrix.at<float>(mp.first, mp.second) < IOU_COST_THRESH)
+			tracks_[mp.first].update(detections[mp.second]);
+	}
+
+	// For unmatched detections, create new KalmanTracker
+	for (int i = 0; i < detections.size(); i++) {
+		if (matched_detections_ids.count(i) == 0) {
+			tracks_.emplace_back(detections[i]);  // In-place creation of a new KalmanTracker
+		}
+	}
+
+	// For unmatched tracks, missed_frames is already incremented in predict()
 
 	// Delete tracks where missed_frames > MAX_MISSED_FRAMES
+	tracks_.erase(
+		std::remove_if(tracks_.begin(), tracks_.end(),
+			[](const KalmanTracker& t) {return t.missed_frames > MAX_MISSED_FRAMES;}),
+		tracks_.end()
+	);
 
 	// Return remaining tracks
 	return tracks_;
 }
 
 
-std::vector<std::pair<int, int>> MOTTracker::hungarian_algorithm(cv::Mat& cost_matrix) {
-	// Goal: draw the minimum number of hor/vert lines to cover all zeros, so that these are n in number
-	// This way, we can extract unique (Track, Detection) pairs 
+// Get yourself ready for some neuron crunching 
 
-	std::vector<bool> row_covered;  // Covered rows
-	std::vector<bool> col_covered;  // Covered columns
-	std::vector<std::pair<int, int>> starred;  // Optimal zeros
-	std::vector<std::pair<int, int>> primed;  // Candidate zeros
-	double min_val = 0.0;
+std::vector<std::pair<int, int>> MOTTracker::hungarian_algorithm(cv::Mat& cost_matrix) {
+	// Goal: extract unique (Track, Detection) pairs that satisfy the minimum cost matching problem
+
+	cv::Mat work_matrix = cost_matrix.clone();
 	cv::Mat padding;
+	std::unordered_set<int> padded_rows, padded_cols;
+	double min_val = 0.0;
 
 	// Step 0: Extension
-	// Pad the smaller dimension with dummy values (1.0f)
-	int rows_excess = cost_matrix.rows - cost_matrix.cols;
-	if (rows_excess > 0) {
-		padding = HA_MAX * cv::Mat::ones(cost_matrix.rows, rows_excess, CV_32F);
-		cv::hconcat(cost_matrix, padding, cost_matrix);
+	// Pad the smaller dimension with dummy values (HA_MAX)
+	int rows_excess = work_matrix.rows - work_matrix.cols;
+	if (rows_excess > 0) {  // Excess of rows -> add column
+		for (int i = 0; i < rows_excess; i++)
+			padded_cols.insert(i + work_matrix.cols);
+		padding = HA_MAX * cv::Mat::ones(work_matrix.rows, rows_excess, CV_32F);
+		cv::hconcat(work_matrix, padding, work_matrix);
 	}
-	else if (rows_excess < 0) {
-		padding = HA_MAX * cv::Mat::ones(-rows_excess, cost_matrix.cols, CV_32F);
-		cost_matrix.push_back(padding);
+	else if (rows_excess < 0) {  // Excess of columns -> add row
+		for (int i = 0; i < -rows_excess; i++)
+			padded_rows.insert(i + work_matrix.rows);
+		padding = HA_MAX * cv::Mat::ones(-rows_excess, work_matrix.cols, CV_32F);
+		work_matrix.push_back(padding);
 	}
 
-	int n = cost_matrix.rows; // Now squared
+	int n = work_matrix.rows; // Now squared
 
-	row_covered = std::vector<bool>(n, false);
-	col_covered = std::vector<bool>(n, false);
+	std::vector<bool> row_covered(n, false);  // Covered rows
+	std::vector<bool> col_covered(n, false);  // Covered columns
+	std::vector<std::pair<int, int>> starred;  // Optimal zeros
+	std::vector<std::pair<int, int>> primed;  // Candidate zeros
 
 	// Step 1: Reduction
 	// Subtract the row minimum from each row, then subtract the column minimum from each column
 	// Results: every row and column will have at least one zero (a "candidate assignment")
 	for (int i = 0; i < n; i++) {
-		cv::minMaxLoc(cost_matrix.row(i), &min_val, nullptr);
+		cv::minMaxLoc(work_matrix.row(i), &min_val, nullptr);
 		for (int j = 0; j < n; j++)
-			cost_matrix.at<float>(i, j) -= (float)min_val;
+			work_matrix.at<float>(i, j) -= (float)min_val;
 	}
 	for (int j = 0; j < n; j++) {
-		cv::minMaxLoc(cost_matrix.col(j), &min_val, nullptr);
+		cv::minMaxLoc(work_matrix.col(j), &min_val, nullptr);
 		for (int i = 0; i < n; i++)
-			cost_matrix.at<float>(i, j) -= (float)min_val;
+			work_matrix.at<float>(i, j) -= (float)min_val;
 	}
 
 	std::fill(row_covered.begin(), row_covered.end(), false);
@@ -99,7 +128,7 @@ std::vector<std::pair<int, int>> MOTTracker::hungarian_algorithm(cv::Mat& cost_m
 	// Find zeros and 'star' them if they aren't in a row/col that already has a star.
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			if (std::abs(cost_matrix.at<float>(i, j)) < 1e-5f && !row_covered[i] && !col_covered[j]) {
+			if (std::abs(work_matrix.at<float>(i, j)) < 1e-5f && !row_covered[i] && !col_covered[j]) {
 				starred.push_back({ i, j });
 				row_covered[i] = true;
 				col_covered[j] = true;
@@ -122,7 +151,7 @@ std::vector<std::pair<int, int>> MOTTracker::hungarian_algorithm(cv::Mat& cost_m
 		for (int i = 0; i < n && !found_zero; i++) {
 			if (row_covered[i]) continue;
 			for (int j = 0; j < n && !found_zero; j++) {
-				if (!col_covered[j] && std::abs(cost_matrix.at<float>(i, j)) < 1e-5f) {
+				if (!col_covered[j] && std::abs(work_matrix.at<float>(i, j)) < 1e-5f) {
 					p = { i, j };
 					primed.push_back(p);
 					found_zero = true;
@@ -160,7 +189,7 @@ std::vector<std::pair<int, int>> MOTTracker::hungarian_algorithm(cv::Mat& cost_m
 			for (int i = 0; i < n; i++) {
 				for (int j = 0; j < n; j++) {
 					if (!row_covered[i] && !col_covered[j]) {
-						float v = cost_matrix.at<float>(i, j);
+						float v = work_matrix.at<float>(i, j);
 						if (v < min_step6) min_step6 = v;
 					}
 				}
@@ -169,9 +198,9 @@ std::vector<std::pair<int, int>> MOTTracker::hungarian_algorithm(cv::Mat& cost_m
 			for (int i = 0; i < n; i++) {
 				for (int j = 0; j < n; j++) {
 					if (!row_covered[i] && !col_covered[j])
-						cost_matrix.at<float>(i, j) -= min_step6;
+						work_matrix.at<float>(i, j) -= min_step6;
 					else if (row_covered[i] && col_covered[j])
-						cost_matrix.at<float>(i, j) += min_step6;
+						work_matrix.at<float>(i, j) += min_step6;
 				}
 			}
 			// Continue back to Step 4 (NO re-starring)
@@ -180,6 +209,14 @@ std::vector<std::pair<int, int>> MOTTracker::hungarian_algorithm(cv::Mat& cost_m
 	}
 
 	// If all N columns are covered, we're done! (interpret starred zeros as assignments)
+
+	// Final Step: remove starred elements which column/row was artificially padded to the cost matrix
+	starred.erase(
+		std::remove_if(starred.begin(), starred.end(),
+			[padded_rows, padded_cols](std::pair<int, int>& s) {return (padded_rows.count(s.first) != 0 || padded_cols.count(s.second) != 0);}),
+		starred.end()
+	);
+
 	return starred;
 }
 
@@ -228,7 +265,7 @@ void MOTTracker::augment_path(std::pair<int, int>& p_start, std::vector<std::pai
 	}
 }
 
-void reset_cover_cols(std::vector<bool>& row_covered, std::vector<bool>& col_covered, std::vector<std::pair<int, int>>& primed, std::vector<std::pair<int, int>>& starred) {
+void MOTTracker::reset_cover_cols(std::vector<bool>& row_covered, std::vector<bool>& col_covered, std::vector<std::pair<int, int>>& primed, std::vector<std::pair<int, int>>& starred) {
 	// Reset everything for the next iteration
 	primed.clear();
 	std::fill(row_covered.begin(), row_covered.end(), false);

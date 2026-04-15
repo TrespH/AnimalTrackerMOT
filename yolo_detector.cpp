@@ -127,15 +127,17 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 	return detections;
 }
 
-void YOLODetector::draw(cv::Mat& image, const std::vector<Detection>& detections) const {
-	for (const Detection& d : detections) {
-		// Build label, text point, color
-		std::string label = d.class_label + ": " + std::to_string(d.confidence).substr(0, 4); // Show confidence with 2 decimal places
-		cv::Point point(d.bbox.tl().x, d.bbox.tl().y - 5);
-		cv::Scalar color = colors_.at(d.class_id);
+void YOLODetector::draw(cv::Mat& image, const Detection& d, const int id) const {
+	// Build label, text point, color
+	std::string label =
+		(id == -1) ? "" : ("ID" + std::to_string(id) + " - ") +
+		d.class_label + ": " +
+		std::to_string(d.confidence).substr(0, 4);
 
-		// Draw colored rectangle with attached label
-		cv::rectangle(image, d.bbox, color, 2);
-		cv::putText(image, label, point, cv::FONT_HERSHEY_PLAIN, 1, color, 1);
-	}
+	cv::Point point(d.bbox.tl().x, d.bbox.tl().y - 5);
+	cv::Scalar color = colors_.at(d.class_id);
+
+	// Draw colored rectangle with attached label
+	cv::rectangle(image, d.bbox, color, 2);
+	cv::putText(image, label, point, cv::FONT_HERSHEY_PLAIN, 1, color, 1);
 }
