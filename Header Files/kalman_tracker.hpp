@@ -15,19 +15,18 @@ public:
 	// The caller (Hungarian algorithm) only needs the bounding box to compute IoU against YOLO detections
 	cv::Rect predict();
 
-
 	// Correct the measurement H
 	void update(const Detection& d);
 
 private:
-	cv::Mat x;  // State vector 8x1 (belief
+	cv::Mat x;  // State Vector 8x1 (belief)
 	cv::Mat P;  // Covariance 8x8 (uncertainty)
-	cv::Mat F;  // State 8x8
-	cv::Mat Q;  // State Noise 8x8
+	cv::Mat F;  // State Transition 8x8
+	cv::Mat Q;  // Process Noise 8x8
 
-	cv::Mat z;  // Measurement
-	cv::Mat K;  // Kalman gain 8x4
-	cv::Mat H;  // Measurement 4x8
+	cv::Mat z;  // Measurement Vector 4x1
+	cv::Mat K;  // Kalman Gain 8x4
+	cv::Mat H;  // Measurement Tansition 4x8
 	cv::Mat R;  // Measurement Noise 4x4
 
 };

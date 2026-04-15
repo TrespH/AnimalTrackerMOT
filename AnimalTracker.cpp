@@ -2,10 +2,23 @@
 #include <iostream>
 #include <unordered_set>
 #include "yolo_detector.hpp"
+#include "mot_tracker.hpp"
 
 const std::string ACQUISITION_MODE = "video"; // image, video or camera
 
+
 int main() {
+	/*float data[] = {
+		6, 10, 5, 2,
+		3, 5, 7, 7,
+		9, 1, 8, 4,
+		10, 3, 12, 5,
+	};
+	cv::Mat test(4, 4, CV_32F, data);
+	
+	return 0;*/
+
+	
 	//std::string im_path = "Resources/lambo.png";
 	std::string im_path = "Resources/cows_human.jpg";
 	std::string video_path = "Resources/Wolf and dog.mp4";
