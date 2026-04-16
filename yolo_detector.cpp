@@ -10,7 +10,7 @@ constexpr int NUM_CLASSES = 80;
 constexpr int NUM_CANDIDATES = 8400;
 
 
-YOLODetector::YOLODetector(const std::string& model_path, const std::string& names_path, const std::unordered_set<int>& allowed_classes, float conf_thresh, float nms_thresh, bool verbose)
+YOLODetector::YOLODetector(const std::string& model_path, const std::string& names_path, const std::unordered_set<int>& allowed_classes, float conf_thresh, float nms_thresh, bool use_gpu, bool verbose)
 	: allowed_classes_(allowed_classes), conf_thresh_(conf_thresh), nms_thresh_(nms_thresh), verbose_(verbose) {
 
 	// Reserve space for class names and colors
@@ -20,31 +20,49 @@ YOLODetector::YOLODetector(const std::string& model_path, const std::string& nam
 	// Load model from the ONNX downloaded
 	net_ = cv::dnn::readNetFromONNX(model_path);
 
+	// Set CUDA environment if requested
+	if (use_gpu) {
+		net_.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA); // DNN_TARGET_CUDA or DNN_TARGET_CUDA_FP16
+		net_.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA); // DNN_TARGET_CUDA or DNN_TARGET_CUDA_FP16
+	}
+	else {
+		net_.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+		net_.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+	}
+
 	// Import (COCO) class names
 	std::ifstream names_file;
 	names_file.open(names_path);
 
 	std::string name;
+	int i = 0;
 	while (std::getline(names_file, name))
 		if (!name.empty()) {
-			class_names_.push_back(name);
-			if (verbose_)
-				std::cout << "Loaded class: " << name << std::endl;
+			if (allowed_classes_.count(i) != 0) {
+				class_names_.push_back(name);
+				if (verbose_)
+					std::cout << "Loaded class: " << name << std::endl;
+			}
+			else class_names_.push_back("");
+			i++;
 		}
 
 	names_file.close();
 
 	// Initialize class colors (sample Hue on class id)
 	for (int i = 0; i < class_names_.size(); i++) {
-		int hue = (i * 180 / class_names_.size()) % 180;  // Set hue in range [0, 179] deterministically and evenly across classes
-		cv::Scalar hsvColor(hue, 255, 255);  // Set Saturation and Value to max for visibility
-		cv::Mat hsvMat(1, 1, CV_8UC3, hsvColor);  // Wrap color in a 1x1 3-Channels Matrix
-		cv::Mat bgrMat;
-		cv::cvtColor(hsvMat, bgrMat, cv::COLOR_HSV2BGR);  // Convert HSV to BGR
-		cv::Scalar bgrScalar = (bgrMat.at<cv::Vec3b>(0, 0));
-		colors_.push_back(bgrScalar);
-		if (verbose_)
-			std::cout << "Assigned color for class '" << class_names_[i] << "': " << bgrScalar << std::endl;
+		if (allowed_classes_.count(i) != 0) {
+			int hue = (i * 180 / allowed_classes_.size()) % 180;  // Set hue in range [0, 179] deterministically and evenly across classes
+			cv::Scalar hsvColor(hue, 255, 255);  // Set Saturation and Value to max for visibility
+			cv::Mat hsvMat(1, 1, CV_8UC3, hsvColor);  // Wrap color in a 1x1 3-Channels Matrix
+			cv::Mat bgrMat;
+			cv::cvtColor(hsvMat, bgrMat, cv::COLOR_HSV2BGR);  // Convert HSV to BGR
+			cv::Scalar bgrScalar = (bgrMat.at<cv::Vec3b>(0, 0));
+			colors_.push_back(bgrScalar);
+			if (verbose_)
+				std::cout << "Assigned color for class '" << class_names_[i] << "': " << bgrScalar << std::endl;
+		}
+		else colors_.push_back(cv::Scalar());
 	}
 
 }
@@ -61,7 +79,7 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 
 	cv::Mat blob;
 	// Preprocessing: normalize; resize so the smaller side is YOLO_INPUT_SIZE, keeping aspect ratio; stretch to YOLO_INPUT_SIZE x YOLO_INPUT_SIZE (YOLOv8 is robust enough to handle aspect-ratio distortion)
-	cv::dnn::blobFromImage(image, blob, 1.0 / 255.0, cv::Size(YOLO_INPUT_SIZE, YOLO_INPUT_SIZE), 0, true, false);
+	cv::dnn::blobFromImage(image, blob, 1.0 / 255.0, cv::Size(YOLO_INPUT_SIZE, YOLO_INPUT_SIZE), 0, true, true);
 
 	// Inference
 	net_.setInput(blob);

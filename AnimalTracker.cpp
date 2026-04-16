@@ -4,14 +4,28 @@
 #include "yolo_detector.hpp"
 #include "mot_tracker.hpp"
 
-const std::string ACQUISITION_MODE = "camera"; // image, video or camera
+
+const std::string ACQUISITION_MODE = "video"; // image, video or camera
+constexpr bool USE_GPU = true;
+constexpr bool VERBOSE = false;
+constexpr float FPS = 30;
 
 
 int main() {
-	
-	//std::string im_path = "Resources/lambo.png";
+
+	if (USE_GPU) {
+		if (cv::cuda::getCudaEnabledDeviceCount() == 0) {
+			std::cout << cv::getBuildInformation() << std::endl;
+			std::cerr << "Error: No GPU devices detected." << std::endl;
+			cv::waitKey(0);
+			return -1;
+		}
+		else if (VERBOSE) std::cout << "GPU devices detected!" << std::endl;
+	}
+
 	std::string im_path = "Resources/cows_human.jpg";
-	std::string video_path = "Resources/Wolf and dog.mp4";
+	// std::string video_path = "Resources/Cat and Dog.mp4";
+	std::string video_path = "Resources/Giraffe and Zebras.mp4";
 
 	std::string model_path = "Resources/yolov8n.onnx";
 	std::string names_path = "Resources/COCO_classes.txt";
@@ -25,22 +39,25 @@ int main() {
 	
 	if (model_path.empty() || names_path.empty()) {
 		std::cerr << "Error: Missing required paths for model, or class names." << std::endl;
+		cv::waitKey(0);
 		return -1;
 	}
 
 	// Detector creation
-	YOLODetector detector(model_path, names_path, allowed_classes, conf_thresh, nms_thresh, false);
+	YOLODetector detector(model_path, names_path, allowed_classes, conf_thresh, nms_thresh, USE_GPU, VERBOSE);
 
 	if (ACQUISITION_MODE == "image") {
 		// Acquire image
 		if (im_path.empty()) {
 			std::cerr << "Error: Missing required paths for image." << std::endl;
+			cv::waitKey(0);
 			return -1;
 		}
 
 		cv::Mat image = cv::imread(im_path);
 		if (image.empty()) {
 			std::cerr << "Error: Could not read the image at " << im_path << std::endl;
+			cv::waitKey(0);
 			return -1;
 		}
 
@@ -60,6 +77,7 @@ int main() {
 		if (ACQUISITION_MODE == "video") {
 			if (video_path.empty()) {
 				std::cerr << "Error: Missing required paths for video." << std::endl;
+				cv::waitKey(0);
 				return -1;
 			}
 			capture.open(video_path);
@@ -69,6 +87,7 @@ int main() {
 
 		if (!capture.isOpened()) {
 			std::cerr << "Error: Could not read the video at " << video_path << std::endl;
+			cv::waitKey(0);
 			return -1;
 		}
 
@@ -91,7 +110,7 @@ int main() {
 			cv::imshow("frame", frame);
 
 			// Show frame wih bboxes, labels and likelihoods
-			if (cv::waitKey(3) == 27) break;  // 27: Escape key
+			if (cv::waitKey((int)(1/FPS * 1000)) == 27) break;  // 27: Escape key
 		}
 
 	}

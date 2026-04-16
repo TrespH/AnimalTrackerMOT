@@ -13,7 +13,7 @@ struct Detection {
 
 class YOLODetector {
 public:
-	YOLODetector(const std::string& model_path, const std::string& names_path, const std::unordered_set<int>& allowed_classes = {}, float conf_thresh = 0.45f, float nms_thresh = 0.50f, bool verbose = false);
+	YOLODetector(const std::string& model_path, const std::string& names_path, const std::unordered_set<int>& allowed_classes = {}, float conf_thresh = 0.45f, float nms_thresh = 0.50f, bool use_gpu = false, bool verbose = false);
 
 	std::vector<Detection> detect(const cv::Mat& image);
 

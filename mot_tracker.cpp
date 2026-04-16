@@ -3,9 +3,9 @@
 #include "mot_tracker.hpp"
 
 
-constexpr int MAX_MISSED_FRAMES = 30;
-constexpr float HA_MAX = 1.0f;
+constexpr int MAX_MISSED_FRAMES = 10;
 constexpr float IOU_COST_THRESH = 0.3f;
+constexpr float HA_MAX = 1.0f;
 
 
 float computeIoU(const cv::Rect& a, const cv::Rect& b) {  // Will be moved to utils module
