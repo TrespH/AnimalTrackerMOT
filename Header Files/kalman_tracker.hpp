@@ -19,15 +19,17 @@ public:
 	// Correct the measurement H
 	void update(const Detection& d);
 
+	cv::Rect getBbox() const;
+
 private:
 	cv::Mat x;  // State Vector 8x1 (belief)
 	cv::Mat P;  // Covariance 8x8 (uncertainty)
 	cv::Mat F;  // State Transition 8x8
 	cv::Mat Q;  // Process Noise 8x8
 
-	cv::Mat z;  // Measurement Vector 4x1
-	cv::Mat K;  // Kalman Gain 8x4
+	cv::Mat z = cv::Mat(4, 1, CV_32F);  // Measurement Vector 4x1
+	cv::Mat K = cv::Mat(8, 4, CV_32F);  // Kalman Gain 8x4
 	cv::Mat H;  // Measurement Tansition 4x8
 	cv::Mat R;  // Measurement Noise 4x4
-
+	cv::Mat I;  // Identity
 };

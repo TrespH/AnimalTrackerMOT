@@ -39,6 +39,9 @@ KalmanTracker::KalmanTracker(const Detection& d) : id(++next_id_), missed_frames
 	// Initialize Q (small process noise) and R (moderate mesurement noise)
 	Q = 0.01 * cv::Mat::eye(8, 8, CV_32F);
 	R = 10 * cv::Mat::eye(4, 4, CV_32F);
+
+	// Initialize Identity matrix
+	I = cv::Mat::eye(8, 8, CV_32F);
 }
 
 
@@ -57,27 +60,35 @@ cv::Rect KalmanTracker::predict() {
 	int h = x.at<float>(3);
 
 	cv::Rect bbox((cx - w / 2), (cy - h / 2), w, h);
+	last_d.confidence = 0.0f;
+	last_d.bbox = bbox;
 	return bbox;
 }
 
 
 void KalmanTracker::update(const Detection& d) {
-	last_d = d;
 	// Reset missed number of frames, as we just received a measurement
 	missed_frames = 0;
 
-	// Initialize measurement z from last detection
-	z = cv::Mat(4, 1, CV_32F);
+	// Update measurement z from last detection
 	z.at<float>(0) = d.bbox.x + d.bbox.width / 2.0f; // cx
 	z.at<float>(1) = d.bbox.y + d.bbox.height / 2.0f; // cy
 	z.at<float>(2) = d.bbox.width; // w
 	z.at<float>(3) = d.bbox.height; // h
 
-	// Kalman Gain (8x4)
-	K = cv::Mat(8, 4, CV_32F);
 	K = P * H.t() * (H * P * H.t() + R).inv();
 
 	// Correct state and covariance
 	x = x + K * (z - H * x);
-	P = (cv::Mat::eye(8, 8, CV_32F) - K * H) * P;
+	P = (I - K * H) * P;
+
+	// Set tracker's detection as the last detection, but with the predicted bbox
+	last_d.class_id = d.class_id;
+	last_d.class_label = d.class_label;
+	last_d.confidence = d.confidence;
+	float cx = x.at<float>(0);
+	float cy = x.at<float>(1);
+	float w = x.at<float>(2);
+	float h = x.at<float>(3);
+	last_d.bbox = cv::Rect((int)(cx - w / 2), (int)(cy - h / 2), (int)w, (int)h);
 }

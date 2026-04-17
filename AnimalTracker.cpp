@@ -10,6 +10,9 @@ constexpr bool USE_GPU = true;
 constexpr bool VERBOSE = false;
 constexpr float FPS = 30;
 
+constexpr float CONF_THRESH = 0.6f;
+constexpr float NMS_THRESH = 0.50f;
+
 
 int main() {
 
@@ -24,14 +27,17 @@ int main() {
 	}
 
 	std::string im_path = "Resources/cows_human.jpg";
-	// std::string video_path = "Resources/Cat and Dog.mp4";
-	std::string video_path = "Resources/Giraffe and Zebras.mp4";
+	//std::string video_path = "Resources/Cat and Dog.mp4";
+	// std::string video_path = "Resources/Dogs and Cat.mp4";
+	// std::string video_path = "Resources/Giraffe and Zebras.mp4";
+	std::string video_path = "Resources/Birds.mp4";
 
-	std::string model_path = "Resources/yolov8n.onnx";
+	// std::string model_path = "Resources/yolov8n.onnx";
+	std::string model_path = "Resources/yolo11n_640.onnx";
+
 	std::string names_path = "Resources/COCO_classes.txt";
 
-	float conf_thresh = 0.45f;
-	float nms_thresh = 0.50f;
+	
 
 	// Allowed classes to detect (let's use a hash structure to have O(1) search per detection)
 	std::unordered_set<int> allowed_classes = { 0, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 }; // Animals only: person, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe
@@ -44,7 +50,7 @@ int main() {
 	}
 
 	// Detector creation
-	YOLODetector detector(model_path, names_path, allowed_classes, conf_thresh, nms_thresh, USE_GPU, VERBOSE);
+	YOLODetector detector(model_path, names_path, allowed_classes, CONF_THRESH, NMS_THRESH, USE_GPU, VERBOSE);
 
 	if (ACQUISITION_MODE == "image") {
 		// Acquire image
@@ -109,7 +115,7 @@ int main() {
 		
 			cv::imshow("frame", frame);
 
-			// Show frame wih bboxes, labels and likelihoods
+			// Show frame wih ids, bboxes, labels and likelihoods
 			if (cv::waitKey((int)(1/FPS * 1000)) == 27) break;  // 27: Escape key
 		}
 

@@ -83,7 +83,7 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 
 	// Inference
 	net_.setInput(blob);
-	cv::Mat inference = net_.forward(); // size (1, out_size, NUM_CANDIDATES) for yolov8n
+	cv::Mat inference = net_.forward(); // size (1, out_size, NUM_CANDIDATES)
 	inference = inference.reshape(0, out_size); // reshape to (out_size, NUM_CANDIDATES) for easier indexing
 
 	// Set scales
@@ -146,7 +146,7 @@ std::vector<Detection> YOLODetector::detect(const cv::Mat& image) {
 }
 
 void YOLODetector::draw(cv::Mat& image, const Detection& d, const int id) const {
-	// Build label, text point, color
+	// Build label, text point, color, thickness
 	std::string label =
 		(id == -1) ? "" : ("ID" + std::to_string(id) + " - ") +
 		d.class_label + ": " +
@@ -154,8 +154,9 @@ void YOLODetector::draw(cv::Mat& image, const Detection& d, const int id) const 
 
 	cv::Point point(d.bbox.tl().x, d.bbox.tl().y - 5);
 	cv::Scalar color = colors_.at(d.class_id);
+	int thickness = d.confidence < 1e-5 ? 1 : 2;
 
 	// Draw colored rectangle with attached label
-	cv::rectangle(image, d.bbox, color, 2);
-	cv::putText(image, label, point, cv::FONT_HERSHEY_PLAIN, 1, color, 1);
+	cv::rectangle(image, d.bbox, color, thickness);
+	cv::putText(image, label, point, cv::FONT_HERSHEY_PLAIN, 1, color, thickness);
 }
