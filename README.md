@@ -1,14 +1,12 @@
+
+
+
+
 # AnimalTrackerMOT
 
 A deliberate project on *Multi-Object Tracking (MOT)* applied to animal targets detected using YOLO (v11n), written in C++ using OpenCV.
 
 The MOT is based on the *Simple Online and Realtime Tracking (SORT)* algorithm, which combines a Kalman filter for state estimation and the Hungarian algorithm for data association.
-
-## Video demo
-
-![Video Demo](https://github.com/TrespH/AnimalTrackerMOT/blob/424de15200b08cc21869451e34a45248642a472e/Resources/Birds.mp4)
-
----
 
 ## Implementation details
 
@@ -50,6 +48,22 @@ Incremental steps include:
 
 An effective and easy to implement improvement could be made on the Kalman filter *F* matrix (the state transition matrix), which currently assumes a constant velocity model, but could be enhanced to account for acceleration or more complex motion patterns. We could also discard targets that are detected under a certain threshold in terms of detection frames (i.e., `3`), in order to reduce false positives.
 Further steps may include the implementation of a more sophisticated data association method (e.g., using appearance features or a Re-Identification model) to improve tracking performance in crowded scenes or with occlusions.
+
+## Visual demos
+
+Birds:
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/f8ea640c-94dc-41b3-aa9a-3581d7d84154" width="100%" controls autoplay loop muted>
+    Your browser does not support the video tag.
+  </video>
+</div>
+
+Giraffe and Zebras:
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/038bfaab-320f-48b4-bf43-456c287e47d8" width="100%" controls autoplay loop muted>
+    Your browser does not support the video tag.
+  </video>
+</div>
 
 ## Bibliography
 
