@@ -22,8 +22,8 @@ YOLODetector::YOLODetector(const std::string& model_path, const std::string& nam
 
 	// Set CUDA environment if requested
 	if (use_gpu) {
-		net_.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA); // DNN_TARGET_CUDA or DNN_TARGET_CUDA_FP16
-		net_.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA); // DNN_TARGET_CUDA or DNN_TARGET_CUDA_FP16
+		net_.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
+		net_.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA_FP16); // DNN_TARGET_CUDA or DNN_TARGET_CUDA_FP16
 	}
 	else {
 		net_.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
